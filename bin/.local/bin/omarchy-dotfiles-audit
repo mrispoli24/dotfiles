@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# Audit local dotfiles after Omarchy updates.
+
+set -u
+
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+OMARCHY_DIR="${OMARCHY_PATH:-$HOME/.local/share/omarchy}"
+PACKAGES=(bash nvim tmux git starship ghostty lazygit btop waybar hypr bin)
+STATUS=0
+
+info() {
+  printf '\n== %s ==\n' "$1"
+}
+
+ok() {
+  printf 'ok: %s\n' "$1"
+}
+
+warn() {
+  printf 'warn: %s\n' "$1"
+}
+
+fail() {
+  printf 'fail: %s\n' "$1"
+  STATUS=1
+}
+
+if [[ ! -d "$DOTFILES_DIR" ]]; then
+  fail "dotfiles directory not found: $DOTFILES_DIR"
+  exit "$STATUS"
+fi
+
+info "Repository"
+if git -C "$DOTFILES_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -C "$DOTFILES_DIR" status --short
+  if git -C "$DOTFILES_DIR" status --short | grep -q .; then
+    warn "dotfiles have uncommitted changes"
+  else
+    ok "dotfiles worktree is clean"
+  fi
+else
+  warn "dotfiles directory is not a git worktree"
+fi
+
+info "Stow"
+if ! command -v stow >/dev/null 2>&1; then
+  fail "GNU Stow is not installed"
+else
+  for package in "${PACKAGES[@]}"; do
+    [[ -d "$DOTFILES_DIR/$package" ]] || continue
+
+    if output=$(stow -n -d "$DOTFILES_DIR" -t "$HOME" "$package" 2>&1); then
+      ok "stow $package"
+    else
+      fail "stow $package has conflicts"
+      printf '%s\n' "$output"
+    fi
+  done
+fi
+
+info "Omarchy Commands"
+if ! command -v omarchy >/dev/null 2>&1; then
+  fail "omarchy command is not available"
+else
+  commands_output="$(omarchy commands 2>/dev/null || true)"
+
+  for route in \
+    "omarchy capture screenshot" \
+    "omarchy capture screenrecording" \
+    "omarchy launch tui" \
+    "omarchy update available" \
+    "omarchy weather status" \
+    "omarchy battery status"; do
+    if grep -Fq "$route" <<<"$commands_output"; then
+      ok "$route"
+    else
+      fail "missing dispatcher route: $route"
+    fi
+  done
+fi
+
+info "Direct Omarchy Binary References"
+if command -v rg >/dev/null 2>&1; then
+  mapfile -t references < <(
+    rg --hidden --no-filename -o 'omarchy-[[:alnum:]-]+' \
+      "$DOTFILES_DIR/hypr" "$DOTFILES_DIR/waybar" \
+      2>/dev/null | sort -u
+  )
+
+  if ((${#references[@]} == 0)); then
+    ok "no direct omarchy-* references in hypr or waybar dotfiles"
+  else
+    for reference in "${references[@]}"; do
+      if [[ "$reference" == "omarchy-cmd-terminal-cwd" ]]; then
+        ok "allowed helper reference: $reference"
+        continue
+      fi
+
+      if command -v "$reference" >/dev/null 2>&1; then
+        warn "direct binary reference still exists: $reference"
+      else
+        fail "missing direct binary reference: $reference"
+      fi
+    done
+  fi
+else
+  warn "ripgrep is not installed; skipped direct binary reference scan"
+fi
+
+info "Hyprland Sources"
+hyprland_conf="$DOTFILES_DIR/hypr/.config/hypr/hyprland.conf"
+if [[ -f "$hyprland_conf" ]]; then
+  while IFS= read -r source_path; do
+    [[ "$source_path" == *'*'* ]] && continue
+    expanded="${source_path/#\~/$HOME}"
+
+    if [[ -e "$expanded" ]]; then
+      ok "source exists: $source_path"
+    else
+      fail "source missing: $source_path"
+    fi
+  done < <(sed -n 's/^source = //p' "$hyprland_conf")
+else
+  fail "missing tracked hyprland.conf"
+fi
+
+info "Template Drift"
+compare_template() {
+  local upstream="$1"
+  local tracked="$2"
+  local label="$3"
+
+  if [[ ! -f "$upstream" || ! -f "$tracked" ]]; then
+    warn "cannot compare $label"
+    return
+  fi
+
+  if diff -q "$upstream" "$tracked" >/dev/null; then
+    ok "$label matches current Omarchy template"
+  else
+    warn "$label differs from current Omarchy template"
+    diff -u "$upstream" "$tracked" | sed -n '1,80p'
+  fi
+}
+
+compare_template \
+  "$OMARCHY_DIR/config/hypr/hyprland.conf" \
+  "$DOTFILES_DIR/hypr/.config/hypr/hyprland.conf" \
+  "hyprland.conf"
+
+compare_template \
+  "$OMARCHY_DIR/config/waybar/config.jsonc" \
+  "$DOTFILES_DIR/waybar/.config/waybar/config.jsonc" \
+  "waybar config"
+
+if ((STATUS == 0)); then
+  printf '\nAudit completed without hard failures.\n'
+else
+  printf '\nAudit completed with failures.\n'
+fi
+
+exit "$STATUS"
