@@ -1,6 +1,11 @@
 ---
 name: object-oriented-design
-description: Use this skill when reviewing, designing, or refactoring object-oriented code in Ruby or similar dynamic languages. It applies practical object-oriented design principles: small objects, clear responsibilities, dependency management, duck typing, hidden roles, composition, restrained inheritance, and testable public interfaces.
+description: >-
+  Use this skill when reviewing, designing, or refactoring object-oriented code
+  in Ruby or similar dynamic languages. It applies practical object-oriented
+  design principles: small objects, clear responsibilities, dependency
+  management, duck typing, hidden roles, composition, restrained inheritance,
+  and testable public interfaces.
 ---
 
 # POODR Object-Oriented Design Skill
