@@ -1,0 +1,5 @@
+# Herdr configuration shared via dotfiles.
+# Keep Herdr defaults, but use Ctrl+s as the prefix/leader key.
+
+[keys]
+prefix = "ctrl+s"
