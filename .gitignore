@@ -7,3 +7,9 @@ tmux/.config/tmux/plugins/
 nvim/.config/nvim/lazy/
 nvim/.config/nvim/.lazy/ 
 
+# Runtime state / upgrade backups
+herdr/.config/herdr/*.log
+herdr/.config/herdr/session.json
+herdr/.config/herdr/.plugins.lock
+*.omarchy-upgrade-to-quattro.*.bak
+

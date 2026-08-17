@@ -1,0 +1,4 @@
+-- Personal look'n'feel overrides shared by Quattro machines.
+-- Intentionally empty: use Omarchy defaults here.
+-- Machine-specific display stability tweaks, such as forcing vrr = 0, should
+-- live in that machine's local config instead of shared dotfiles.
